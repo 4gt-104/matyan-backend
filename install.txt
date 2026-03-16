@@ -1,0 +1,2 @@
+docker run --platform linux/amd64 -d -p 4500:4500 -p 4501:4501 -p 4502:4502 -p 4550:4550 --name fdb-container foundationdb/foundationdb:latest
+docker exec -it fdb-container fdbcli --exec "configure new single memory ; status"

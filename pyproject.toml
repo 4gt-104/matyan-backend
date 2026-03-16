@@ -1,0 +1,111 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "matyan-backend"
+version = "0.2.0"
+description = "Production-ready experiment tracker"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+keywords = [
+    "experiment-tracking",
+    "mlops",
+    "fastapi",
+    "foundationdb",
+    "metrics",
+]
+
+authors = [
+    { name = "Tigran Grigoryan", email = "grigoryan.tigran119@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: AsyncIO",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
+requires-python = ">=3.12, <4"
+dependencies = [
+    "fastapi~=0.115.12",
+    "uvicorn~=0.34.2",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+    "loguru~=0.7.3",
+    "websockets~=15.0",
+    "RestrictedPython~=8.0",
+    "numpy~=2.0",
+    "tqdm~=4.0",
+    "msgpack~=1.0",
+    "foundationdb==7.3.69",
+    "boto3~=1.35",
+    "cryptography~=44.0",
+    "aiokafka~=0.13",
+    "click~=8.0",
+    "stream-zip~=0.0.83",
+    "prometheus-client~=0.21",
+    "matyan-api-models~=0.2.0",
+    "cachetools>=7.0.3",
+    "cairosvg>=2.8.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/4gt-104/matyan-core"
+Repository = "https://github.com/4gt-104/matyan-core"
+Documentation = "https://4gt-104.github.io/matyan-core/"
+
+[project.scripts]
+matyan-backend = "matyan_backend.cli:main"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "FBT001",
+    "FBT002",
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D107",
+    "D203",
+    "D213",
+    "D417",
+    "FBT003",
+    "EXE002",
+    "S311",
+    "TD003",
+    "D205",
+    "PLR2004",
+    "PLR0913",
+    "S101",
+    "S104",
+]
+
+
+[dependency-groups]
+dev = [
+    "pytest~=8.0",
+    "httpx~=0.28",
+    "matyan-api-models",
+    "types-boto3[s3]",
+    "pytest-cov>=7.0.0",
+]
