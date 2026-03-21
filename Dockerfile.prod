@@ -25,10 +25,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
 
 WORKDIR /app
 
-COPY pyproject.toml /app/matyan-backend/
-RUN cd /app/matyan-backend && uv pip install --system --no-cache --no-sources -r pyproject.toml
-
-COPY src/ /app/matyan-backend/src/
-RUN uv pip install --system --no-cache --no-deps /app/matyan-backend/
+# Install matyan-backend from PyPI.
+RUN uv pip install --system --no-cache "matyan-backend==${IMAGE_VERSION}"
 
 CMD ["matyan-backend", "start", "--host", "0.0.0.0", "--port", "53800"]

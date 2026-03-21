@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=61", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "matyan-backend"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Production-ready experiment tracker"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -55,7 +55,7 @@ dependencies = [
     "click~=8.0",
     "stream-zip~=0.0.83",
     "prometheus-client~=0.21",
-    "matyan-api-models~=0.2.0",
+    "matyan-api-models~=0.2.1",
     "cachetools>=7.0.3",
     "cairosvg>=2.8.2",
 ]
@@ -101,11 +101,13 @@ ignore = [
 ]
 
 
+[tool.setuptools_scm]
+fallback_version = "0.2.0"
+
 [dependency-groups]
 dev = [
     "pytest~=8.0",
     "httpx~=0.28",
-    "matyan-api-models",
     "types-boto3[s3]",
     "pytest-cov>=7.0.0",
 ]
