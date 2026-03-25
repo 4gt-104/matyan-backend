@@ -31,7 +31,7 @@ from matyan_backend.storage.runs import (
     set_run_experiment,
     update_run_meta,
 )
-from matyan_backend.storage.s3_client import get_blob, stream_blob
+from matyan_backend.storage.blob import get_blob, stream_blob
 from matyan_backend.storage.sequences import get_sequence_length, get_sequence_step_bounds, read_sequence
 
 from ._range_utils import parse_range

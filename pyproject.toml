@@ -50,6 +50,7 @@ dependencies = [
     "msgpack~=1.0",
     "foundationdb==7.3.69",
     "boto3~=1.35",
+    "google-cloud-storage~=2.14",
     "cryptography~=44.0",
     "aiokafka~=0.13",
     "click~=8.0",

@@ -26,7 +26,7 @@ from matyan_backend.api.streaming import (
 from matyan_backend.config import SETTINGS
 from matyan_backend.deps import FdbDb  # noqa: TC001
 from matyan_backend.storage.runs import get_all_contexts, get_run, get_run_attrs, get_run_traces_info
-from matyan_backend.storage.s3_client import get_blob
+from matyan_backend.storage.blob import get_blob
 from matyan_backend.storage.sequences import get_sequence_step_bounds, read_and_sample_sequence, read_sequence
 from matyan_backend.thread_pool import FDB_EXECUTOR, to_fdb_thread
 

@@ -40,26 +40,76 @@ def _init() -> Database:
     return db
 
 
-def _get_s3() -> S3Client:
-    from botocore.config import Config as BotoConfig  # noqa: PLC0415
-    from botocore.exceptions import ClientError  # noqa: PLC0415
+class BlobUploader:
+    def __init__(self) -> None:
+        from botocore.config import Config as BotoConfig  # noqa: PLC0415
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+        import os  # noqa: PLC0415
+        from matyan_backend.config import SETTINGS  # noqa: PLC0415
 
-    from matyan_backend.config import SETTINGS  # noqa: PLC0415
+        self.backend_type = SETTINGS.blob_backend_type
+        
+        if self.backend_type == "gcs":
+            from google.cloud import storage  # noqa: PLC0415
+            from google.auth.credentials import AnonymousCredentials  # noqa: PLC0415
+            
+            if os.environ.get("STORAGE_EMULATOR_HOST"):
+                self.gcs_client = storage.Client(credentials=AnonymousCredentials(), project="test-project")
+            else:
+                self.gcs_client = storage.Client()
+                
+            self.gcs_bucket_name = SETTINGS.gcs_bucket
+            self.gcs_bucket = self.gcs_client.bucket(self.gcs_bucket_name)
+            if not self.gcs_bucket.exists():
+                self.gcs_bucket.create()
+                
+        else:
+            self.s3_client = boto3.client(
+                "s3",
+                endpoint_url=SETTINGS.s3_endpoint,
+                aws_access_key_id=SETTINGS.s3_access_key,
+                aws_secret_access_key=SETTINGS.s3_secret_key,
+                config=BotoConfig(signature_version="s3v4"),
+                region_name="us-east-1",
+            )
+            self.s3_bucket_name = SETTINGS.s3_bucket
+            try:
+                self.s3_client.head_bucket(Bucket=self.s3_bucket_name)
+            except ClientError:
+                self.s3_client.create_bucket(Bucket=self.s3_bucket_name)
 
-    client = boto3.client(
-        "s3",
-        endpoint_url=SETTINGS.s3_endpoint,
-        aws_access_key_id=SETTINGS.s3_access_key,
-        aws_secret_access_key=SETTINGS.s3_secret_key,
-        config=BotoConfig(signature_version="s3v4"),
-        region_name="us-east-1",
-    )
+    def put_blob(self, key: str, data: bytes, content_type: str) -> None:
+        if self.backend_type == "gcs":
+            blob = self.gcs_bucket.blob(key)
+            blob.upload_from_string(data, content_type=content_type)
+        else:
+            self.s3_client.put_object(
+                Bucket=self.s3_bucket_name,
+                Key=key,
+                Body=data,
+                ContentType=content_type,
+            )
 
-    try:
-        client.head_bucket(Bucket=SETTINGS.s3_bucket)
-    except ClientError:
-        client.create_bucket(Bucket=SETTINGS.s3_bucket)
-    return client
+    def clean_prefix(self, prefix: str) -> int:
+        deleted = 0
+        if self.backend_type == "gcs":
+            blobs = list(self.gcs_bucket.list_blobs(prefix=prefix))
+            if blobs:
+                self.gcs_bucket.delete_blobs(blobs)
+                deleted += len(blobs)
+        else:
+            paginator = self.s3_client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self.s3_bucket_name, Prefix=prefix):
+                contents = page.get("Contents", [])
+                if not contents:
+                    continue
+                objects = [{"Key": obj["Key"]} for obj in contents]
+                self.s3_client.delete_objects(Bucket=self.s3_bucket_name, Delete={"Objects": objects, "Quiet": True})
+                deleted += len(objects)
+        return deleted
+
+def _get_blob_uploader() -> BlobUploader:
+    return BlobUploader()
 
 
 def _make_png(width: int, height: int, r: int, g: int, b: int) -> bytes:
@@ -171,9 +221,8 @@ def _make_figure(seed_val: int) -> dict:
     }
 
 
-def _seed_blobs(db: Database, s3: S3Client, run_hash: str, ctx_id: int, run_time: float) -> None:
+def _seed_blobs(db: Database, uploader: BlobUploader, run_hash: str, ctx_id: int, run_time: float) -> None:
     """Seed image, text, and distribution sequences for a single run."""
-    from matyan_backend.config import SETTINGS
     from matyan_backend.storage import runs, sequences
 
     rng = random.Random(run_hash + "-blobs")
@@ -186,12 +235,7 @@ def _seed_blobs(db: Database, s3: S3Client, run_hash: str, ctx_id: int, run_time
         w, h = 64, 64
         png_bytes = _make_png(w, h, r, g, b)
         s3_key = f"{run_hash}/seq/samples/{step}.png"
-        s3.put_object(
-            Bucket=SETTINGS.s3_bucket,
-            Key=s3_key,
-            Body=png_bytes,
-            ContentType="image/png",
-        )
+        uploader.put_blob(s3_key, png_bytes, "image/png")
         metadata = {
             "type": "image",
             "format": "PNG",
@@ -279,12 +323,7 @@ def _seed_blobs(db: Database, s3: S3Client, run_hash: str, ctx_id: int, run_time
     for step in range(num_audio_steps):
         wav_bytes = _make_wav(duration_ms=3000, freqs=tone_sets[step % len(tone_sets)])
         s3_key = f"{run_hash}/seq/audio_clips/{step}.wav"
-        s3.put_object(
-            Bucket=SETTINGS.s3_bucket,
-            Key=s3_key,
-            Body=wav_bytes,
-            ContentType="audio/wav",
-        )
+        uploader.put_blob(s3_key, wav_bytes, "audio/wav")
         metadata = {
             "type": "audio",
             "format": "wav",
@@ -339,7 +378,7 @@ def _seed_blobs(db: Database, s3: S3Client, run_hash: str, ctx_id: int, run_time
     )
 
 
-def _seed_file_artifacts(db: Database, s3: S3Client, run_hash: str) -> int:
+def _seed_file_artifacts(db: Database, uploader: BlobUploader, run_hash: str) -> int:
     """Seed file artifacts (uploaded via log_artifact) for a run. Returns count."""
     from matyan_backend.config import SETTINGS
     from matyan_backend.storage import runs
@@ -353,7 +392,7 @@ def _seed_file_artifacts(db: Database, s3: S3Client, run_hash: str) -> int:
     ]
     for artifact_path, data, content_type in artifacts:
         s3_key = f"{run_hash}/{artifact_path}"
-        s3.put_object(Bucket=SETTINGS.s3_bucket, Key=s3_key, Body=data, ContentType=content_type)
+        uploader.put_blob(s3_key, data, content_type)
         runs.set_run_attrs(
             db,
             run_hash,
@@ -554,7 +593,7 @@ def seed(db: Database) -> None:  # noqa: PLR0915
         {"exp": 2, "lr": 0.0005, "batch_size": 128, "optimizer": "adamw", "layers": 8, "dropout": 0.25},
     ]
 
-    s3 = _get_s3()
+    uploader = _get_blob_uploader()
     base_time = time.time() - 3600 * 24 * 7
 
     for idx, (run_hash, cfg) in enumerate(zip(RUN_HASHES, configs, strict=True)):
@@ -732,8 +771,8 @@ def seed(db: Database) -> None:  # noqa: PLR0915
         _seed_logs(db, run_hash, run_time)
 
         if run_hash in _BLOB_RUNS:
-            _seed_blobs(db, s3, run_hash, ctx_id, run_time)
-            _seed_file_artifacts(db, s3, run_hash)
+            _seed_blobs(db, uploader, run_hash, ctx_id, run_time)
+            _seed_file_artifacts(db, uploader, run_hash)
             print(f"  Created run {run_hash} ({exp['name']}, blobs + artifacts + logs seeded)")
         else:
             print(
@@ -797,21 +836,12 @@ def seed(db: Database) -> None:  # noqa: PLR0915
     )
 
 
-def _clean_s3(s3: S3Client) -> int:
-    """Delete all S3 objects for seeded runs. Returns count deleted."""
-    from matyan_backend.config import SETTINGS
-
+def _clean_blobs(uploader: BlobUploader) -> int:
+    """Delete all blob objects for seeded runs. Returns count deleted."""
     deleted = 0
     for run_hash in _BLOB_RUNS:
         prefix = f"{run_hash}/"
-        paginator = s3.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=SETTINGS.s3_bucket, Prefix=prefix):
-            contents = page.get("Contents", [])
-            if not contents:
-                continue
-            objects = [{"Key": obj["Key"]} for obj in contents]
-            s3.delete_objects(Bucket=SETTINGS.s3_bucket, Delete={"Objects": objects, "Quiet": True})
-            deleted += len(objects)
+        deleted += uploader.clean_prefix(prefix)
     return deleted
 
 
@@ -819,8 +849,8 @@ def clean(db: Database) -> None:
     from matyan_backend.storage import entities, runs
     from matyan_backend.storage.indexes import rebuild_indexes
 
-    s3 = _get_s3()
-    s3_deleted = _clean_s3(s3)
+    uploader = _get_blob_uploader()
+    blobs_deleted = _clean_blobs(uploader)
 
     deleted = 0
     for run_hash in [*RUN_HASHES, STUCK_RUN_HASH]:
@@ -843,7 +873,7 @@ def clean(db: Database) -> None:
             entities.delete_tag(db, tag["id"])
 
     rebuild_indexes(db)
-    print(f"Cleaned {deleted} runs, experiments, tags, and {s3_deleted} S3 object(s).")
+    print(f"Cleaned {deleted} runs, experiments, tags, and {blobs_deleted} blob object(s).")
 
 
 def main() -> None:
