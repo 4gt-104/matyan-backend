@@ -11,7 +11,7 @@ _DEV_KAFKA_BOOTSTRAP = "localhost:9092"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Set to "production" (env: MATYAN_ENVIRONMENT) to enable strict checks: sensitive/critical
     # settings must be overridden (no dev defaults). Default "development" keeps current behavior.
@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     s3_access_key: str = "rustfsadmin"
     s3_secret_key: str = "rustfsadmin"  # noqa: S105
     s3_bucket: str = "matyan-artifacts"
+    s3_region: str = "us-east-1"
 
     # Blob URI encryption key (Fernet URL-safe base64-encoded 32 bytes)
     blob_uri_secret: str = "Juw5-cLlemQI2jAWvceOUB3_CrVfBmI99YIzkpGUXR4="  # noqa: S105
