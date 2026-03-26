@@ -11,7 +11,7 @@ _EXT_TYPE_DATETIME = 1
 def _encode_ext(obj: object) -> bytes:
     if isinstance(obj, datetime):
         ts = obj.timestamp()
-        return msgpack.ExtType(_EXT_TYPE_DATETIME, msgpack.packb(ts))  # type: ignore[return-value]
+        return msgpack.ExtType(_EXT_TYPE_DATETIME, msgpack.packb(ts))  # ty:ignore[invalid-return-type]
     msg = f"Cannot msgpack-encode object of type {type(obj)}"
     raise TypeError(msg)
 

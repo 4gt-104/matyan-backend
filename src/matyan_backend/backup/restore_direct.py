@@ -18,11 +18,12 @@ from matyan_backend.storage import encoding, entities, indexes, runs, sequences
 from matyan_backend.storage.fdb_client import get_directories
 from matyan_backend.storage.indexes import clear_run_tombstone
 
-from .export_blobs import _make_s3_client
+from .export_blobs import _make_gcs_client, _make_s3_client
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from google.cloud import storage
     from types_boto3_s3 import S3Client
 
     from matyan_backend.fdb_types import Database, Transaction
@@ -237,31 +238,48 @@ def _restore_run_associations(db: Database, run_hash: str, meta: dict) -> None:
             runs.set_run_experiment(db, run_hash, exp_id)
 
 
-def _upload_blobs(run_hash: str, run_dir: Path, s3_client: S3Client | None = None) -> tuple[int, int]:
-    """Upload blob files from backup back to S3 in parallel. Returns (count, bytes)."""
+def _upload_blobs(
+    run_hash: str,
+    run_dir: Path,
+    s3_client: S3Client | None = None,
+    gcs_client: storage.Client | None = None,
+) -> tuple[int, int]:
+    """Upload blob files from backup back to S3/GCS in parallel. Returns (count, bytes)."""
     blobs_dir = run_dir / "blobs"
     if not blobs_dir.exists():
         return 0, 0
-
-    client = s3_client or _make_s3_client()
-    bucket = SETTINGS.s3_bucket
 
     blob_files = [p for p in blobs_dir.rglob("*") if p.is_file()]
     if not blob_files:
         return 0, 0
 
-    def _upload_one(blob_path: Path) -> int:
-        relative = blob_path.relative_to(blobs_dir)
-        s3_key = f"{run_hash}/{relative}"
-        data = blob_path.read_bytes()
-        client.put_object(Bucket=bucket, Key=s3_key, Body=data)
-        return len(data)
+    if SETTINGS.blob_backend_type == "gcs":
+        client = gcs_client or _make_gcs_client()
+        bucket = client.bucket(SETTINGS.gcs_bucket)
+
+        def _upload_one(blob_path: Path) -> int:
+            relative = blob_path.relative_to(blobs_dir)
+            s3_key = f"{run_hash}/{relative}"
+            data = blob_path.read_bytes()
+            bucket.blob(s3_key).upload_from_string(data)
+            return len(data)
+
+    else:
+        client = s3_client or _make_s3_client()
+        bucket_name = SETTINGS.s3_bucket
+
+        def _upload_one(blob_path: Path) -> int:
+            relative = blob_path.relative_to(blobs_dir)
+            s3_key = f"{run_hash}/{relative}"
+            data = blob_path.read_bytes()
+            client.put_object(Bucket=bucket_name, Key=s3_key, Body=data)
+            return len(data)
 
     count = 0
     total_bytes = 0
     with ThreadPoolExecutor(max_workers=_S3_UPLOAD_WORKERS) as pool:
         futures = {pool.submit(_upload_one, p): p for p in blob_files}
-        for fut in tqdm(as_completed(futures), total=len(blob_files), desc="    s3 upload", unit="blob", leave=False):
+        for fut in tqdm(as_completed(futures), total=len(blob_files), desc="    blob upload", unit="blob", leave=False):
             total_bytes += fut.result()
             count += 1
 
@@ -276,7 +294,7 @@ def restore_direct(
     skip_blobs: bool = False,
     dry_run: bool = False,
 ) -> None:
-    """Restore a backup archive directly into FDB + S3."""
+    """Restore a backup archive directly into FDB + S3/GCS."""
     manifest = BackupManifest.read(backup_dir)
     errors = manifest.validate(backup_dir)
     if errors:
@@ -294,7 +312,8 @@ def restore_direct(
         click.echo("Restoring entities...")
         _restore_entities(db, backup_dir)
 
-    s3_client = _make_s3_client() if not skip_blobs else None
+    s3_client = _make_s3_client() if not skip_blobs and SETTINGS.blob_backend_type == "s3" else None
+    gcs_client = _make_gcs_client() if not skip_blobs and SETTINGS.blob_backend_type == "gcs" else None
     total_seq = 0
     total_blobs = 0
     total_blob_bytes = 0
@@ -311,8 +330,8 @@ def restore_direct(
         seq_count = _restore_run(db, rh, run_dir)
         total_seq += seq_count
 
-        if not skip_blobs and s3_client is not None:
-            bc, bb = _upload_blobs(rh, run_dir, s3_client)
+        if not skip_blobs and (s3_client is not None or gcs_client is not None):
+            bc, bb = _upload_blobs(rh, run_dir, s3_client=s3_client, gcs_client=gcs_client)
             total_blobs += bc
             total_blob_bytes += bb
 

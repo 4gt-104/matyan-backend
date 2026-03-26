@@ -152,7 +152,7 @@ def query_add_default_expr(query: str) -> str:
 # ---------------------------------------------------------------------------
 
 _DEFAULT_EXPR_SRC = "(run.is_archived == False)"
-_DEFAULT_AST: ast.Expression = compile(_DEFAULT_EXPR_SRC, "<query>", "eval", ast.PyCF_ONLY_AST)  # type: ignore[assignment]
+_DEFAULT_AST: ast.Expression = compile(_DEFAULT_EXPR_SRC, "<query>", "eval", ast.PyCF_ONLY_AST)  # ty:ignore[invalid-assignment]
 
 
 def _default_expression_ast() -> ast.Expression:
@@ -206,7 +206,7 @@ class _DatetimeRewriter(ast.NodeTransformer):
             return node
 
         try:
-            args = tuple(a.value for a in node.args)  # type: ignore[union-attr]
+            args = tuple(a.value for a in node.args)  # ty:ignore[unresolved-attribute]
             naive_dt = datetime(*args)  # noqa: DTZ001
             user_tz = timezone(timedelta(minutes=self._tz_offset))
             aware_dt = naive_dt.replace(tzinfo=user_tz)
@@ -269,7 +269,7 @@ def prepare_query(raw_query: str, tz_offset: int = 0) -> ast.Expression:
     if not stripped:
         return _default_expression_ast()
 
-    tree: ast.Expression = compile(stripped, "<query>", "eval", ast.PyCF_ONLY_AST)  # type: ignore[assignment]
+    tree: ast.Expression = compile(stripped, "<query>", "eval", ast.PyCF_ONLY_AST)  # ty:ignore[invalid-assignment]
     return _transform_query_ast(tree, tz_offset)
 
 

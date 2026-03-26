@@ -20,7 +20,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from loguru import logger
@@ -446,7 +446,7 @@ def _handle_log_hparams(
     if not value or not isinstance(value, dict):
         return
     path: list[str] = []
-    current = value
+    current = cast("dict[str, Any]", value)
     while isinstance(current, dict) and len(current) == 1:
         key = next(iter(current))
         path.append(key)

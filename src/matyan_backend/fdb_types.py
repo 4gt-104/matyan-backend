@@ -105,7 +105,7 @@ def run_with_retry[R](
                     delay,
                 )
                 time.sleep(delay)
-    raise last_err
+    raise last_err  # ty:ignore[invalid-raise]
 
 
 # ---------------------------------------------------------------------------

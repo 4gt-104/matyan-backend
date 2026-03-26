@@ -11,9 +11,10 @@ from typing import TYPE_CHECKING
 import click
 from matyan_api_models.backup import BackupManifest
 
+from matyan_backend.config import SETTINGS
 from matyan_backend.storage import indexes
 
-from .export_blobs import _make_s3_client, export_blobs_for_run
+from .export_blobs import _make_gcs_client, _make_s3_client, export_blobs_for_run
 from .export_entities import export_entities
 from .export_run import export_run
 
@@ -80,15 +81,17 @@ def run_backup(
     total_seq_records = 0
     total_blob_count = 0
     total_blob_bytes = 0
-    s3_client = _make_s3_client() if include_blobs else None
+
+    s3_client = _make_s3_client() if include_blobs and SETTINGS.blob_backend_type == "s3" else None
+    gcs_client = _make_gcs_client() if include_blobs and SETTINGS.blob_backend_type == "gcs" else None
 
     for i, rh in enumerate(hashes, 1):
         click.echo(f"  [{i}/{len(hashes)}] Exporting run {rh}...")
         seq_count = export_run(db, rh, backup_dir)
         total_seq_records += seq_count
 
-        if include_blobs and s3_client is not None:
-            bc, bb = export_blobs_for_run(rh, backup_dir, s3_client=s3_client)
+        if include_blobs and (s3_client is not None or gcs_client is not None):
+            bc, bb = export_blobs_for_run(rh, backup_dir, s3_client=s3_client, gcs_client=gcs_client)
             total_blob_count += bc
             total_blob_bytes += bb
             if bc:

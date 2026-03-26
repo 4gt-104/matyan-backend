@@ -8,7 +8,7 @@ from fdb.directory_impl import directory as _fdb_directory
 from matyan_backend.config import SETTINGS
 
 if TYPE_CHECKING:
-    from matyan_backend.fdb_types import Database, DirectorySubspace
+    from matyan_backend.fdb_types import Database, DirectorySubspace, Transaction
 
 # Must be called before any @transactional decorator is evaluated at
 # import time in downstream modules (runs.py, sequences.py, entities.py).
@@ -69,7 +69,7 @@ def ping(db: Database | None = None) -> bool:
     dirs = get_directories()
 
     @fdb.transactional
-    def _read(tr: object) -> None:
+    def _read(tr: Transaction) -> None:
         tr[dirs.system.pack(("__ping__",))]  # type: ignore[index]
 
     _read(target)
