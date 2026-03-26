@@ -11,9 +11,10 @@ from typing import TYPE_CHECKING
 import click
 from matyan_api_models.backup import BackupManifest
 
+from matyan_backend.config import SETTINGS
 from matyan_backend.storage import indexes
 
-from .export_blobs import _make_s3_client, _make_gcs_client, export_blobs_for_run
+from .export_blobs import _make_gcs_client, _make_s3_client, export_blobs_for_run
 from .export_entities import export_entities
 from .export_run import export_run
 
@@ -80,8 +81,7 @@ def run_backup(
     total_seq_records = 0
     total_blob_count = 0
     total_blob_bytes = 0
-    
-    from matyan_backend.config import SETTINGS
+
     s3_client = _make_s3_client() if include_blobs and SETTINGS.blob_backend_type == "s3" else None
     gcs_client = _make_gcs_client() if include_blobs and SETTINGS.blob_backend_type == "gcs" else None
 

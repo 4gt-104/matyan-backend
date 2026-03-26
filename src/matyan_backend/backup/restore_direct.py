@@ -18,12 +18,12 @@ from matyan_backend.storage import encoding, entities, indexes, runs, sequences
 from matyan_backend.storage.fdb_client import get_directories
 from matyan_backend.storage.indexes import clear_run_tombstone
 
-from .export_blobs import _make_s3_client, _make_gcs_client
-from google.cloud import storage
+from .export_blobs import _make_gcs_client, _make_s3_client
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from google.cloud import storage
     from types_boto3_s3 import S3Client
 
     from matyan_backend.fdb_types import Database, Transaction
@@ -238,7 +238,12 @@ def _restore_run_associations(db: Database, run_hash: str, meta: dict) -> None:
             runs.set_run_experiment(db, run_hash, exp_id)
 
 
-def _upload_blobs(run_hash: str, run_dir: Path, s3_client: S3Client | None = None, gcs_client: storage.Client | None = None) -> tuple[int, int]:
+def _upload_blobs(
+    run_hash: str,
+    run_dir: Path,
+    s3_client: S3Client | None = None,
+    gcs_client: storage.Client | None = None,
+) -> tuple[int, int]:
     """Upload blob files from backup back to S3/GCS in parallel. Returns (count, bytes)."""
     blobs_dir = run_dir / "blobs"
     if not blobs_dir.exists():
@@ -251,7 +256,7 @@ def _upload_blobs(run_hash: str, run_dir: Path, s3_client: S3Client | None = Non
     if SETTINGS.blob_backend_type == "gcs":
         client = gcs_client or _make_gcs_client()
         bucket = client.bucket(SETTINGS.gcs_bucket)
-        
+
         def _upload_one(blob_path: Path) -> int:
             relative = blob_path.relative_to(blobs_dir)
             s3_key = f"{run_hash}/{relative}"
@@ -262,7 +267,7 @@ def _upload_blobs(run_hash: str, run_dir: Path, s3_client: S3Client | None = Non
     else:
         client = s3_client or _make_s3_client()
         bucket_name = SETTINGS.s3_bucket
-        
+
         def _upload_one(blob_path: Path) -> int:
             relative = blob_path.relative_to(blobs_dir)
             s3_key = f"{run_hash}/{relative}"

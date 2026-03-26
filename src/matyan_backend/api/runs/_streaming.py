@@ -548,7 +548,7 @@ def _build_run_data_from_bundle(
 
 
 def _build_trace_view_from_sampled(
-    sv: object,
+    sv: _MetricTraceRef,
     sampled: dict[str, list],
     x_seq: dict[str, list] | None,
 ) -> dict:
@@ -572,7 +572,7 @@ def _build_trace_view_from_sampled(
 def _flush_buffered_traces(
     db: FdbDb,
     run_hash: str,
-    buffered_svs: list,
+    buffered_svs: list[_MetricTraceRef],
     num_points: int,
     x_axis: str | None,
     prefetched_x_axis: dict[int, dict[str, list]] | None = None,
@@ -636,7 +636,7 @@ def _prefetch_x_axis_results(
 async def _collect_traces_async(
     db: FdbDb,
     run_hash: str,
-    buffered_svs: list,
+    buffered_svs: list[_MetricTraceRef],
     num_points: int,
     x_axis: str | None,
     trace_chunk_size: int,

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 import boto3
 from botocore.config import Config as BotoConfig
-
 from google.cloud import storage
 
 from matyan_backend.config import SETTINGS
@@ -27,11 +26,18 @@ def _make_s3_client() -> S3Client:
         region_name=SETTINGS.s3_region,
     )
 
+
 def _make_gcs_client() -> storage.Client:
     return storage.Client()
 
 
-def export_blobs_for_run(run_hash: str, backup_dir: Path, *, s3_client: S3Client | None = None, gcs_client: storage.Client | None = None) -> tuple[int, int]:
+def export_blobs_for_run(
+    run_hash: str,
+    backup_dir: Path,
+    *,
+    s3_client: S3Client | None = None,
+    gcs_client: storage.Client | None = None,
+) -> tuple[int, int]:
     """Download all objects under ``<run_hash>/`` into the backup.
 
     Returns ``(blob_count, total_bytes)``.

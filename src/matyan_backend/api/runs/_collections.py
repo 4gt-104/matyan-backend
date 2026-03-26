@@ -370,7 +370,7 @@ def iter_matching_sequences(  # noqa: C901, PLR0912, PLR0915
             sum_fetch_contexts += dt_fetch_contexts
             sum_build += dt_build
             sum_trace_loop += dt_trace_loop
-            _kw = {"path": path_label, "endpoint": _ep, "run_hash": h, "run_index": counter}
+            _kw = {"path": path_label, "endpoint": _ep, "run_hash": h, "run_index": counter, "extra": ""}
             _log_timing("fetch_meta", dt_fetch_meta, **_kw)
             _log_timing("build_run_view", dt_build, **_kw)
             _log_timing("fetch_traces", dt_fetch_traces, **_kw)

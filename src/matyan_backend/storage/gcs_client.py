@@ -14,12 +14,13 @@ if TYPE_CHECKING:
 _client: storage.Client | None = None
 _bucket: storage.Bucket | None = None
 
+
 def _get_bucket() -> storage.Bucket:
     global _client, _bucket  # noqa: PLW0603
     if _client is None:
         _client = storage.Client()
         _bucket = _client.bucket(SETTINGS.gcs_bucket)
-    return _bucket  # type: ignore[return-value]
+    return _bucket  # ty:ignore[invalid-return-type]
 
 
 def get_blob(s3_key: str) -> bytes:

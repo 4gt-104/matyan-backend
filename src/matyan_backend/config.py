@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -32,7 +34,7 @@ class Settings(BaseSettings):
     fdb_retry_max_delay_sec: float = 2.0
 
     # Blob backend selection
-    blob_backend_type: str = "s3"  # "s3" or "gcs"
+    blob_backend_type: Literal["s3", "gcs"] = "s3"
 
     # S3 (RustFS in dev, AWS S3 in prod)
     s3_endpoint: str = "http://localhost:9000"
@@ -128,27 +130,21 @@ def validate_production_settings(settings: Settings) -> None:  # noqa: C901
     if not settings.fdb_cluster_file.strip():
         msg = "In production, FDB_CLUSTER_FILE must be set (non-empty)."
         raise ValueError(msg)
-    if settings.blob_backend_type not in ("s3", "gcs"):
-        msg = f"Invalid BLOB_BACKEND_TYPE: {settings.blob_backend_type!r}. Must be 's3' or 'gcs'."
-        raise ValueError(msg)
-    if settings.blob_backend_type == "s3":
-        if settings.s3_access_key == _DEV_S3_CRED:
-            msg = (
-                "In production, S3_ACCESS_KEY must be set explicitly and must not be the default dev value."
-            )
-            raise ValueError(msg)
-        if settings.s3_secret_key == _DEV_S3_CRED:
-            msg = (
-                "In production, S3_SECRET_KEY must be set explicitly and must not be the default dev value."
-            )
-            raise ValueError(msg)
-        if settings.s3_endpoint == _DEV_S3_ENDPOINT:
-            msg = "In production, S3_ENDPOINT must be set explicitly and must not be the default dev value."
-            raise ValueError(msg)
-    elif settings.blob_backend_type == "gcs":
-        if not settings.gcs_bucket.strip():
-            msg = "In production with GCS backend, GCS_BUCKET must be set."
-            raise ValueError(msg)
+    match settings.blob_backend_type:
+        case "s3":
+            if settings.s3_access_key == _DEV_S3_CRED:
+                msg = "In production, S3_ACCESS_KEY must be set explicitly and must not be the default dev value."
+                raise ValueError(msg)
+            if settings.s3_secret_key == _DEV_S3_CRED:
+                msg = "In production, S3_SECRET_KEY must be set explicitly and must not be the default dev value."
+                raise ValueError(msg)
+            if settings.s3_endpoint == _DEV_S3_ENDPOINT:
+                msg = "In production, S3_ENDPOINT must be set explicitly and must not be the default dev value."
+                raise ValueError(msg)
+        case "gcs":
+            if not settings.gcs_bucket.strip():
+                msg = "In production with GCS backend, GCS_BUCKET must be set."
+                raise ValueError(msg)
 
 
 SETTINGS = Settings()

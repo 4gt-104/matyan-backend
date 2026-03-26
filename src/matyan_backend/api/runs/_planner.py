@@ -333,7 +333,7 @@ def _eval_expr(db: Database, node: ast.expr) -> _EvalResult:  # noqa: C901, PLR0
             result_set: set[str] | None = None
             merged_traces: frozenset[str] | None = None
             for r in indexed:
-                child_set = set(r.hashes)  # type: ignore[arg-type]
+                child_set = set(r.hashes)  # ty:ignore[invalid-argument-type]
                 if result_set is None:
                     result_set = child_set
                 else:

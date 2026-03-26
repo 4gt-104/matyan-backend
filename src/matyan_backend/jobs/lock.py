@@ -15,7 +15,7 @@ from matyan_backend.storage import encoding
 from matyan_backend.storage.fdb_client import get_directories
 
 if TYPE_CHECKING:
-    from matyan_backend.fdb_types import Database
+    from matyan_backend.fdb_types import Database, Transaction
 
 
 def try_acquire(db: Database, job_name: str, ttl_seconds: int) -> bool:
@@ -26,7 +26,7 @@ def try_acquire(db: Database, job_name: str, ttl_seconds: int) -> bool:
     """
 
     @fdb.transactional
-    def _txn(tr: object) -> bool:
+    def _txn(tr: Transaction) -> bool:
         sys_dir = get_directories().system
         key = sys_dir.pack(("job_lock", job_name))
         raw = tr[key]  # type: ignore[index]
@@ -47,7 +47,7 @@ def release(db: Database, job_name: str) -> None:
     """Release the lock for *job_name*. Idempotent — missing key is a no-op."""
 
     @fdb.transactional
-    def _txn(tr: object) -> None:
+    def _txn(tr: Transaction) -> None:
         sys_dir = get_directories().system
         key = sys_dir.pack(("job_lock", job_name))
         del tr[key]  # type: ignore[arg-type]
