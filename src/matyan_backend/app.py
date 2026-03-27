@@ -125,12 +125,12 @@ app.add_exception_handler(HTTPException, http_exception_handler)  # ty:ignore[in
 app.add_exception_handler(RequestValidationError, validation_exception_handler)  # ty:ignore[invalid-argument-type]
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
-app.add_middleware(RequestTimingMiddleware)  # ty:ignore[invalid-argument-type]
+app.add_middleware(RequestTimingMiddleware)
 
-app.add_middleware(TrailingSlashMiddleware)  # ty:ignore[invalid-argument-type]
+app.add_middleware(TrailingSlashMiddleware)
 
 app.add_middleware(
-    CORSMiddleware,  # ty:ignore[invalid-argument-type]
+    CORSMiddleware,
     allow_origins=SETTINGS.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],

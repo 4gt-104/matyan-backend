@@ -69,10 +69,10 @@ def read_entity(tr: Transaction, prefix: str, entity_uuid: str) -> dict | None:
     return fields
 
 
-def _list_entities(tr: Transaction, prefix: str) -> list[dict]:
+def _list_entities(tr: Transaction, prefix: str) -> list[dict[str, Any]]:
     sd = sys_dir()
     r = sd.range((prefix,))
-    entities: dict[str, dict] = {}
+    entities: dict[str, dict[str, Any]] = {}
     for kv in tr.get_range(r.start, r.stop):
         key_tuple = sd.unpack(kv.key)
         entity_uuid = key_tuple[1]
@@ -155,7 +155,7 @@ def get_experiment_by_name(tr: Transaction, name: str) -> dict | None:
 
 
 @transactional
-def list_experiments(tr: Transaction) -> list[dict]:
+def list_experiments(tr: Transaction) -> list[dict[str, Any]]:
     return _list_entities(tr, _EXP)
 
 
@@ -332,7 +332,7 @@ def get_tag_by_name(tr: Transaction, name: str) -> dict | None:
 
 
 @transactional
-def list_tags(tr: Transaction) -> list[dict]:
+def list_tags(tr: Transaction) -> list[dict[str, Any]]:
     return _list_entities(tr, _TAG)
 
 
@@ -476,7 +476,7 @@ def get_dashboard(tr: Transaction, uid: str) -> dict | None:
 
 
 @transactional
-def list_dashboards(tr: Transaction) -> list[dict]:
+def list_dashboards(tr: Transaction) -> list[dict[str, Any]]:
     return _list_entities(tr, _DASH)
 
 
@@ -504,7 +504,7 @@ def create_dashboard_app(
     state: dict | None = None,
     *,
     dashboard_id: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     uid = _new_uuid()
     now = _now()
     data: dict[str, Any] = {
@@ -525,7 +525,7 @@ def get_dashboard_app(tr: Transaction, uid: str) -> dict | None:
 
 
 @transactional
-def list_dashboard_apps(tr: Transaction) -> list[dict]:
+def list_dashboard_apps(tr: Transaction) -> list[dict[str, Any]]:
     return _list_entities(tr, _APP)
 
 
@@ -567,7 +567,7 @@ def get_report(tr: Transaction, uid: str) -> dict | None:
 
 
 @transactional
-def list_reports(tr: Transaction) -> list[dict]:
+def list_reports(tr: Transaction) -> list[dict[str, Any]]:
     return _list_entities(tr, _REPORT)
 
 
@@ -617,7 +617,7 @@ def get_note(tr: Transaction, uid: str) -> dict | None:
 
 
 @transactional
-def list_notes(tr: Transaction) -> list[dict]:
+def list_notes(tr: Transaction) -> list[dict[str, Any]]:
     return _list_entities(tr, _NOTE)
 
 
@@ -632,10 +632,10 @@ def delete_note(tr: Transaction, uid: str) -> None:
 
 
 @transactional
-def list_notes_for_run(tr: Transaction, run_hash: str) -> list[dict]:
+def list_notes_for_run(tr: Transaction, run_hash: str) -> list[dict[str, Any]]:
     return [n for n in _list_entities(tr, _NOTE) if n.get("run_hash") == run_hash]
 
 
 @transactional
-def list_notes_for_experiment(tr: Transaction, experiment_id: str) -> list[dict]:
+def list_notes_for_experiment(tr: Transaction, experiment_id: str) -> list[dict[str, Any]]:
     return [n for n in _list_entities(tr, _NOTE) if n.get("experiment_id") == experiment_id]

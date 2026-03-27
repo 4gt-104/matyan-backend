@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 dashboards_router = APIRouter()
 
 
-def _dash_to_out(d: dict, db: Database | None = None) -> dict:
+def _dash_to_out(d: dict, db: Database | None = None) -> dict[str, Any]:
     app_type: str | None = None
     app_id = d.get("app_id")
     if app_id and db is not None:
@@ -70,7 +70,7 @@ def _update_dashboard(db: FdbDb, dashboard_id: str, name: str | None, descriptio
     return _dash_to_out(updated, db)
 
 
-def _delete_dashboard(db: object, dashboard_id: str) -> bool:
+def _delete_dashboard(db: FdbDb, dashboard_id: str) -> bool:
     d = entities.get_dashboard(db, dashboard_id)
     if not d:
         return False

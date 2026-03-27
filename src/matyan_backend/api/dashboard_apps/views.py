@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -19,7 +20,7 @@ from .pydantic_models import (
 dashboard_apps_router = APIRouter()
 
 
-def _app_to_out(a: dict) -> dict:
+def _app_to_out(a: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": a["id"],
         "type": a.get("type", ""),
@@ -29,11 +30,11 @@ def _app_to_out(a: dict) -> dict:
     }
 
 
-def _list_apps(db: FdbDb) -> list[dict]:
+def _list_apps(db: FdbDb) -> list[dict[str, Any]]:
     return [_app_to_out(a) for a in entities.list_dashboard_apps(db)]
 
 
-def _create_app(db: FdbDb, app_type: str, state: dict | None) -> dict:
+def _create_app(db: FdbDb, app_type: str, state: dict | None) -> dict[str, Any]:
     a = entities.create_dashboard_app(db, app_type, state=state)
     return _app_to_out(a)
 
@@ -62,7 +63,7 @@ def _update_app(db: FdbDb, app_id: str, app_type: str | None, state: dict | None
     return _app_to_out(updated)
 
 
-def _delete_app(db: object, app_id: str) -> bool:
+def _delete_app(db: FdbDb, app_id: str) -> bool:
     a = entities.get_dashboard_app(db, app_id)
     if not a:
         return False
@@ -71,19 +72,19 @@ def _delete_app(db: object, app_id: str) -> bool:
 
 
 @dashboard_apps_router.get("/", response_model=ExploreStateListOut)
-async def get_apps_api(db: FdbDb) -> list[dict]:
+async def get_apps_api(db: FdbDb) -> list[dict[str, Any]]:
     """List all dashboard apps (explore states)."""
     return await asyncio.to_thread(_list_apps, db)
 
 
 @dashboard_apps_router.post("/", response_model=ExploreStateGetOut, status_code=201)
-async def create_app_api(body: ExploreStateCreateIn, db: FdbDb) -> dict:
+async def create_app_api(body: ExploreStateCreateIn, db: FdbDb) -> dict[str, Any]:
     """Create a new dashboard app (type and optional state)."""
     return await asyncio.to_thread(_create_app, db, body.type, body.state)
 
 
 @dashboard_apps_router.get("/{app_id}/", response_model=ExploreStateGetOut)
-async def get_app_api(app_id: str, db: FdbDb) -> dict:
+async def get_app_api(app_id: str, db: FdbDb) -> dict[str, Any]:
     """Get a single dashboard app by ID.
 
     :raises HTTPException: 404 if not found.

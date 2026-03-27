@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -14,7 +15,7 @@ from .pydantic_models import ReportCreateIn, ReportListOut, ReportOut, ReportUpd
 reports_router = APIRouter()
 
 
-def _report_to_out(r: dict) -> dict:
+def _report_to_out(r: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": r["id"],
         "name": r.get("name", ""),
@@ -66,7 +67,7 @@ def _update_report(
     return _report_to_out(updated)
 
 
-def _delete_report(db: object, report_id: str) -> bool:
+def _delete_report(db: FdbDb, report_id: str) -> bool:
     r = entities.get_report(db, report_id)
     if not r:
         return False

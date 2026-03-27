@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     fdb_retry_max_delay_sec: float = 2.0
 
     # Blob backend selection
-    blob_backend_type: Literal["s3", "gcs"] = "s3"
+    blob_backend_type: Literal["s3", "gcs", "azure"] = "s3"
 
     # S3 (RustFS in dev, AWS S3 in prod)
     s3_endpoint: str = "http://localhost:9000"
@@ -45,6 +45,11 @@ class Settings(BaseSettings):
 
     # GCS
     gcs_bucket: str = "matyan-artifacts"
+
+    # Azure
+    azure_conn_str: str = ""
+    azure_account_url: str = ""
+    azure_container: str = "matyan-artifacts"
 
     # Blob URI encryption key (Fernet URL-safe base64-encoded 32 bytes)
     blob_uri_secret: str = "Juw5-cLlemQI2jAWvceOUB3_CrVfBmI99YIzkpGUXR4="  # noqa: S105
@@ -98,7 +103,7 @@ class Settings(BaseSettings):
     )
 
 
-def validate_production_settings(settings: Settings) -> None:  # noqa: C901
+def validate_production_settings(settings: Settings) -> None:  # noqa: C901, PLR0912
     """When environment is production, require that sensitive/critical settings are not dev defaults.
 
     Raises ValueError with a clear message on first violation. Call after Settings() is built.
@@ -144,6 +149,13 @@ def validate_production_settings(settings: Settings) -> None:  # noqa: C901
         case "gcs":
             if not settings.gcs_bucket.strip():
                 msg = "In production with GCS backend, GCS_BUCKET must be set."
+                raise ValueError(msg)
+        case "azure":
+            if not settings.azure_container.strip():
+                msg = "In production with Azure backend, AZURE_CONTAINER must be set."
+                raise ValueError(msg)
+            if not settings.azure_conn_str.strip() and not settings.azure_account_url.strip():
+                msg = "In production with Azure backend, AZURE_CONN_STR or AZURE_ACCOUNT_URL must be set."
                 raise ValueError(msg)
 
 
