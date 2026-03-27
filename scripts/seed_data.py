@@ -12,18 +12,26 @@ Usage:
 from __future__ import annotations
 
 import math
+import os
 import random
 import struct
 import sys
 import time
+import zlib
 from typing import TYPE_CHECKING
 
 import boto3
+from botocore.config import Config as BotoConfig
+from botocore.exceptions import ClientError
+
+from matyan_backend.config import SETTINGS
+from matyan_backend.storage import entities, runs, sequences
+from matyan_backend.storage.indexes import rebuild_indexes
 
 if TYPE_CHECKING:
-    from types_boto3_s3.client import S3Client
-
     from matyan_backend.fdb_types import Database
+
+# ruff: noqa: T201
 
 SEED_PREFIX = "seed-"
 RUN_HASHES = [f"{SEED_PREFIX}{i:04d}" for i in range(12)]
@@ -42,27 +50,37 @@ def _init() -> Database:
 
 class BlobUploader:
     def __init__(self) -> None:
-        from botocore.config import Config as BotoConfig  # noqa: PLC0415
-        from botocore.exceptions import ClientError  # noqa: PLC0415
-        import os  # noqa: PLC0415
-        from matyan_backend.config import SETTINGS  # noqa: PLC0415
-
         self.backend_type = SETTINGS.blob_backend_type
-        
-        if self.backend_type == "gcs":
-            from google.cloud import storage  # noqa: PLC0415
+
+        if self.backend_type == "azure":
+            from azure.identity import DefaultAzureCredential  # noqa: PLC0415
+            from azure.storage.blob import BlobServiceClient  # noqa: PLC0415
+
+            if SETTINGS.azure_conn_str:
+                self.azure_client = BlobServiceClient.from_connection_string(SETTINGS.azure_conn_str)
+            else:
+                self.azure_client = BlobServiceClient(
+                    account_url=SETTINGS.azure_account_url,
+                    credential=DefaultAzureCredential(),
+                )
+            self.azure_container_client = self.azure_client.get_container_client(SETTINGS.azure_container)
+            if not self.azure_container_client.exists():
+                self.azure_container_client.create_container()
+
+        elif self.backend_type == "gcs":
             from google.auth.credentials import AnonymousCredentials  # noqa: PLC0415
-            
+            from google.cloud import storage  # noqa: PLC0415
+
             if os.environ.get("STORAGE_EMULATOR_HOST"):
                 self.gcs_client = storage.Client(credentials=AnonymousCredentials(), project="test-project")
             else:
                 self.gcs_client = storage.Client()
-                
+
             self.gcs_bucket_name = SETTINGS.gcs_bucket
             self.gcs_bucket = self.gcs_client.bucket(self.gcs_bucket_name)
             if not self.gcs_bucket.exists():
                 self.gcs_bucket.create()
-                
+
         else:
             self.s3_client = boto3.client(
                 "s3",
@@ -79,7 +97,13 @@ class BlobUploader:
                 self.s3_client.create_bucket(Bucket=self.s3_bucket_name)
 
     def put_blob(self, key: str, data: bytes, content_type: str) -> None:
-        if self.backend_type == "gcs":
+        if self.backend_type == "azure":
+            from azure.storage.blob import ContentSettings  # noqa: PLC0415
+
+            blob = self.azure_container_client.get_blob_client(key)
+            blob.upload_blob(data, overwrite=True)
+            blob.set_http_headers(content_settings=ContentSettings(content_type=content_type))
+        elif self.backend_type == "gcs":
             blob = self.gcs_bucket.blob(key)
             blob.upload_from_string(data, content_type=content_type)
         else:
@@ -92,7 +116,13 @@ class BlobUploader:
 
     def clean_prefix(self, prefix: str) -> int:
         deleted = 0
-        if self.backend_type == "gcs":
+        if self.backend_type == "azure":
+            blobs = self.azure_container_client.list_blobs(name_starts_with=prefix)
+            batch = [b.name for b in blobs]
+            for name in batch:
+                self.azure_container_client.delete_blob(name)
+            deleted += len(batch)
+        elif self.backend_type == "gcs":
             blobs = list(self.gcs_bucket.list_blobs(prefix=prefix))
             if blobs:
                 self.gcs_bucket.delete_blobs(blobs)
@@ -108,14 +138,13 @@ class BlobUploader:
                 deleted += len(objects)
         return deleted
 
+
 def _get_blob_uploader() -> BlobUploader:
     return BlobUploader()
 
 
 def _make_png(width: int, height: int, r: int, g: int, b: int) -> bytes:
     """Generate a minimal valid PNG with a solid colour fill."""
-    import zlib
-
     raw_rows = b""
     for _ in range(height):
         raw_rows += b"\x00" + bytes([r, g, b]) * width
@@ -140,8 +169,6 @@ def _make_distribution(seed_val: int) -> dict:
     ``BLOB(data=hist.tobytes())`` storage) so the backend can serve
     them directly as ``numpy_to_encodable``-style blobs.
     """
-    import struct
-
     rng = random.Random(seed_val)
     bin_count = 32
     weights = [max(0, rng.gauss(50, 20)) for _ in range(bin_count)]
@@ -223,8 +250,6 @@ def _make_figure(seed_val: int) -> dict:
 
 def _seed_blobs(db: Database, uploader: BlobUploader, run_hash: str, ctx_id: int, run_time: float) -> None:
     """Seed image, text, and distribution sequences for a single run."""
-    from matyan_backend.storage import runs, sequences
-
     rng = random.Random(run_hash + "-blobs")
     num_image_steps = 5
     num_text_steps = 8
@@ -380,9 +405,6 @@ def _seed_blobs(db: Database, uploader: BlobUploader, run_hash: str, ctx_id: int
 
 def _seed_file_artifacts(db: Database, uploader: BlobUploader, run_hash: str) -> int:
     """Seed file artifacts (uploaded via log_artifact) for a run. Returns count."""
-    from matyan_backend.config import SETTINGS
-    from matyan_backend.storage import runs
-
     artifacts = [
         ("model_checkpoint.pt", b"fake-pytorch-checkpoint-data-" * 100, "application/octet-stream"),
         ("config.yaml", b"lr: 0.001\nbatch_size: 32\noptimizer: adam\nepochs: 50\n", "text/yaml"),
@@ -440,8 +462,6 @@ _LOG_RECORDS = [
 
 
 def _seed_logs(db: Database, run_hash: str, run_time: float) -> None:
-    from matyan_backend.storage import runs, sequences
-
     runs.set_context(db, run_hash, 0, {})
 
     for step, line in enumerate(_LOG_LINES):
@@ -515,8 +535,6 @@ def _seed_system_metrics(
     run_time: float,
 ) -> None:
     """Seed system resource metrics that the UI shows in the System tab."""
-    from matyan_backend.storage import runs, sequences
-
     rng = random.Random(run_hash + "_system")
     sys_steps = max(num_steps // 10, 5)
 
@@ -565,8 +583,6 @@ def _seed_system_metrics(
 
 
 def seed(db: Database) -> None:  # noqa: PLR0915
-    from matyan_backend.storage import entities, runs, sequences
-
     exp_baseline = entities.create_experiment(db, "baseline", description="Initial baseline runs")
     exp_tuning = entities.create_experiment(db, "lr-tuning", description="Learning rate sweep")
     exp_arch = entities.create_experiment(db, "architecture-v2", description="New architecture tests")
@@ -802,7 +818,16 @@ def seed(db: Database) -> None:  # noqa: PLR0915
         db,
         STUCK_RUN_HASH,
         ("hparams",),
-        {"learning_rate": 0.001, "batch_size": 64, "optimizer": "adam", "num_layers": 4, "dropout": 0.2, "model": "resnet50", "dataset": "cifar10", "epochs": 100},
+        {
+            "learning_rate": 0.001,
+            "batch_size": 64,
+            "optimizer": "adam",
+            "num_layers": 4,
+            "dropout": 0.2,
+            "model": "resnet50",
+            "dataset": "cifar10",
+            "epochs": 100,
+        },
     )
     runs.update_run_meta(db, STUCK_RUN_HASH, client_start_ts=stuck_time)
     runs.set_run_attrs(
@@ -812,7 +837,11 @@ def seed(db: Database) -> None:  # noqa: PLR0915
         {
             "packages": ["torch==2.2.0", "numpy==1.26.4"],
             "env_variables": {"CUDA_VISIBLE_DEVICES": "0,1"},
-            "git_info": {"branch": "feature/long-training", "commit": "deadbeef", "remote_url": "https://github.com/example/project.git"},
+            "git_info": {
+                "branch": "feature/long-training",
+                "commit": "deadbeef",
+                "remote_url": "https://github.com/example/project.git",
+            },
             "executable": "/usr/bin/python3",
             "arguments": ["train.py", "--epochs", "100", "--patience", "20"],
         },
@@ -846,9 +875,6 @@ def _clean_blobs(uploader: BlobUploader) -> int:
 
 
 def clean(db: Database) -> None:
-    from matyan_backend.storage import entities, runs
-    from matyan_backend.storage.indexes import rebuild_indexes
-
     uploader = _get_blob_uploader()
     blobs_deleted = _clean_blobs(uploader)
 

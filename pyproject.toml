@@ -51,6 +51,8 @@ dependencies = [
     "foundationdb==7.3.69",
     "boto3~=1.35",
     "google-cloud-storage~=2.14",
+    "azure-storage-blob~=12.24",
+    "azure-identity~=1.19",
     "cryptography~=44.0",
     "aiokafka~=0.13",
     "click~=8.0",

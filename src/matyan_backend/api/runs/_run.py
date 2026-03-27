@@ -167,14 +167,24 @@ def _fetch_run_info(
     contexts = get_all_contexts(db, run_id)
 
     raw_artifacts = get_run_artifacts(db, run_id)
-    artifacts = [
-        {
-            "name": a["name"],
-            "path": a["path"],
-            "uri": f"s3://{SETTINGS.s3_bucket}/{a['s3_key']}",
-        }
-        for a in raw_artifacts
-    ]
+    artifacts: list[dict[str, str]] = []
+
+    for raw_artifact in raw_artifacts:
+        match SETTINGS.blob_backend_type:
+            case "azure":
+                uri = f"azure://{SETTINGS.azure_container}/{raw_artifact['s3_key']}"
+            case "gcs":
+                uri = f"gs://{SETTINGS.gcs_bucket}/{raw_artifact['s3_key']}"
+            case _:
+                uri = f"s3://{SETTINGS.s3_bucket}/{raw_artifact['s3_key']}"
+
+        artifacts.append(
+            {
+                "name": raw_artifact["name"],
+                "path": raw_artifact["path"],
+                "uri": uri,
+            },
+        )
 
     return {
         "params": params,

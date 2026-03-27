@@ -18,11 +18,12 @@ from matyan_backend.storage import encoding, entities, indexes, runs, sequences
 from matyan_backend.storage.fdb_client import get_directories
 from matyan_backend.storage.indexes import clear_run_tombstone
 
-from .export_blobs import _make_gcs_client, _make_s3_client
+from .export_blobs import _make_azure_client, _make_gcs_client, _make_s3_client
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from azure.storage.blob import BlobServiceClient
     from google.cloud import storage
     from types_boto3_s3 import S3Client
 
@@ -243,6 +244,7 @@ def _upload_blobs(
     run_dir: Path,
     s3_client: S3Client | None = None,
     gcs_client: storage.Client | None = None,
+    azure_client: BlobServiceClient | None = None,
 ) -> tuple[int, int]:
     """Upload blob files from backup back to S3/GCS in parallel. Returns (count, bytes)."""
     blobs_dir = run_dir / "blobs"
@@ -253,7 +255,18 @@ def _upload_blobs(
     if not blob_files:
         return 0, 0
 
-    if SETTINGS.blob_backend_type == "gcs":
+    if SETTINGS.blob_backend_type == "azure":
+        client = azure_client or _make_azure_client()
+        container = client.get_container_client(SETTINGS.azure_container)
+
+        def _upload_one(blob_path: Path) -> int:
+            relative = blob_path.relative_to(blobs_dir)
+            s3_key = f"{run_hash}/{relative}"
+            data = blob_path.read_bytes()
+            container.get_blob_client(s3_key).upload_blob(data, overwrite=True)
+            return len(data)
+
+    elif SETTINGS.blob_backend_type == "gcs":
         client = gcs_client or _make_gcs_client()
         bucket = client.bucket(SETTINGS.gcs_bucket)
 
@@ -314,6 +327,7 @@ def restore_direct(
 
     s3_client = _make_s3_client() if not skip_blobs and SETTINGS.blob_backend_type == "s3" else None
     gcs_client = _make_gcs_client() if not skip_blobs and SETTINGS.blob_backend_type == "gcs" else None
+    azure_client = _make_azure_client() if not skip_blobs and SETTINGS.blob_backend_type == "azure" else None
     total_seq = 0
     total_blobs = 0
     total_blob_bytes = 0
@@ -330,8 +344,14 @@ def restore_direct(
         seq_count = _restore_run(db, rh, run_dir)
         total_seq += seq_count
 
-        if not skip_blobs and (s3_client is not None or gcs_client is not None):
-            bc, bb = _upload_blobs(rh, run_dir, s3_client=s3_client, gcs_client=gcs_client)
+        if not skip_blobs and (s3_client is not None or gcs_client is not None or azure_client is not None):
+            bc, bb = _upload_blobs(
+                rh,
+                run_dir,
+                s3_client=s3_client,
+                gcs_client=gcs_client,
+                azure_client=azure_client,
+            )
             total_blobs += bc
             total_blob_bytes += bb
 
