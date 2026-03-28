@@ -49,3 +49,35 @@ def get_blob_size(s3_key: str) -> int:
     """Return the size in bytes of an S3 object."""
     resp = _get_client().head_object(Bucket=SETTINGS.s3_bucket, Key=s3_key)
     return resp["ContentLength"]
+
+
+def delete_blobs(keys: list[str]) -> int:
+    """Delete multiple objects from S3 in batches. Returns count of deleted objects."""
+    if not keys:
+        return 0
+    client = _get_client()
+    bucket = SETTINGS.s3_bucket
+    objects = [{"Key": k} for k in keys]
+    deleted_count = 0
+    # S3 maximum limits deletion to 1000 per request
+    for i in range(0, len(objects), 1000):
+        chunk = objects[i : i + 1000]
+        resp = client.delete_objects(Bucket=bucket, Delete={"Objects": chunk, "Quiet": True})
+        deleted_count += len(chunk) - len(resp.get("Errors", []))
+    return deleted_count
+
+
+def delete_blob_prefix(prefix: str) -> int:
+    """Delete all objects under a prefix from S3. Returns count of deleted objects."""
+    client = _get_client()
+    bucket = SETTINGS.s3_bucket
+    deleted_count = 0
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        contents = page.get("Contents", [])
+        if not contents:
+            continue
+        objects = [{"Key": obj["Key"]} for obj in contents]
+        client.delete_objects(Bucket=bucket, Delete={"Objects": objects, "Quiet": True})
+        deleted_count += len(objects)
+    return deleted_count

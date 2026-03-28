@@ -42,3 +42,25 @@ def get_blob_size(blob_key: str) -> int:
             return gcs_client.get_blob_size(blob_key)
         case _:
             return s3_client.get_blob_size(blob_key)
+
+
+def delete_blobs(keys: list[str]) -> int:
+    """Delete a list of objects from the active blob backend. Returns count of deleted objects."""
+    match SETTINGS.blob_backend_type:
+        case "azure":
+            return azure_client.delete_blobs(keys)
+        case "gcs":
+            return gcs_client.delete_blobs(keys)
+        case _:
+            return s3_client.delete_blobs(keys)
+
+
+def delete_blob_prefix(prefix: str) -> int:
+    """Delete all objects under a prefix from the active blob backend. Returns count of deleted objects."""
+    match SETTINGS.blob_backend_type:
+        case "azure":
+            return azure_client.delete_blob_prefix(prefix)
+        case "gcs":
+            return gcs_client.delete_blob_prefix(prefix)
+        case _:
+            return s3_client.delete_blob_prefix(prefix)

@@ -220,7 +220,7 @@ def _fetch_artifact_download(
     run_id: str,
     path: str,
 ) -> tuple[bytes, str, str] | None:
-    """Synchronous helper — locate artifact and fetch from S3."""  # noqa: D401
+    """Synchronous helper — locate artifact and fetch from blob storage."""  # noqa: D401
     run = get_run(db, run_id)
     if not run:
         return None
