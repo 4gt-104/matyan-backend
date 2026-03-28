@@ -10,18 +10,21 @@ Leaving `MATYAN_ENVIRONMENT` unset or set to `development` keeps the current beh
 
 ## Required overrides in production
 
-When `MATYAN_ENVIRONMENT=production`, the following must be set and must **not** be the default dev values:
+When `MATYAN_ENVIRONMENT=production`, the following must be set and must **not** be the default dev values (depending on the `BLOB_BACKEND_TYPE`):
 
-| Setting | Env var (typical) | Purpose |
-|--------|--------------------|--------|
-| Blob URI secret | `BLOB_URI_SECRET` | Fernet key for blob URIs; must be unique and secret in prod |
-| S3 endpoint | `S3_ENDPOINT` | S3-compatible API URL (e.g. `https://s3.amazonaws.com`) |
-| S3 access key | `S3_ACCESS_KEY` | S3 credentials |
-| S3 secret key | `S3_SECRET_KEY` | S3 credentials |
-| Kafka bootstrap servers | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker address(es) |
-| FDB cluster file | `FDB_CLUSTER_FILE` | Path to the FoundationDB cluster file |
+| Setting | Env var (typical) | Backend Type | Purpose |
+|--------|--------------------|--------------|---------|
+| Blob URI secret | `BLOB_URI_SECRET` | All | Fernet key for blob URIs; must be unique and secret in prod |
+| Kafka bootstrap servers | `KAFKA_BOOTSTRAP_SERVERS` | All | Kafka broker address(es) |
+| FDB cluster file | `FDB_CLUSTER_FILE` | All | Path to the FoundationDB cluster file |
+| S3 endpoint | `S3_ENDPOINT` | `s3` (default) | S3-compatible API URL (e.g. `https://s3.amazonaws.com`) |
+| S3 access key | `S3_ACCESS_KEY` | `s3` (default) | S3 credentials |
+| S3 secret key | `S3_SECRET_KEY` | `s3` (default) | S3 credentials |
+| GCS bucket | `GCS_BUCKET` | `gcs` | GCS bucket name; credentials from ADC |
+| Azure container | `AZURE_CONTAINER` | `azure` | Azure container name |
+| Azure credentials | `AZURE_CONN_STR` or `AZURE_ACCOUNT_URL` | `azure` | Azure connection string or account URL |
 
-`S3_BUCKET` and other optional settings keep their defaults unless you override them.
+`S3_BUCKET`, `S3_REGION` (defaults: `us-east-1`), and other optional settings keep their defaults unless you override them.
 
 ## Supplying secrets
 

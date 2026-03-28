@@ -83,7 +83,7 @@ def reindex() -> None:
 @click.option("--runs", default=None, help="Comma-separated run hashes to back up")
 @click.option("--experiment", default=None, help="Back up all runs in this experiment")
 @click.option("--since", default=None, help="Back up runs created after this ISO datetime")
-@click.option("--include-blobs/--no-blobs", default=True, help="Include/skip S3 artifact download")
+@click.option("--include-blobs/--no-blobs", default=True, help="Include/skip blob artifact download")
 @click.option("--compress", is_flag=True, default=False, help="Produce .tar.gz archive")
 def backup(
     output_path: str,
@@ -93,7 +93,7 @@ def backup(
     include_blobs: bool,
     compress: bool,
 ) -> None:
-    """Back up FDB data and S3 artifacts to a portable archive."""
+    """Back up FDB data and blob artifacts to a portable archive."""
     from matyan_backend.backup.exporter import run_backup  # noqa: PLC0415
     from matyan_backend.storage.fdb_client import ensure_directories, init_fdb  # noqa: PLC0415
 
@@ -116,9 +116,9 @@ def backup(
 @click.argument("backup_path")
 @click.option("--dry-run", is_flag=True, default=False, help="Validate backup without writing")
 @click.option("--skip-entities", is_flag=True, default=False, help="Skip restoring experiments/tags/dashboards")
-@click.option("--skip-blobs", is_flag=True, default=False, help="Skip uploading blobs to S3")
+@click.option("--skip-blobs", is_flag=True, default=False, help="Skip uploading blobs to blob storage")
 def restore(backup_path: str, dry_run: bool, skip_entities: bool, skip_blobs: bool) -> None:
-    """Restore a backup archive into FDB + S3 (direct mode)."""
+    """Restore a backup archive into FDB + blob storage (direct mode)."""
     import tarfile  # noqa: PLC0415
     import tempfile  # noqa: PLC0415
     from pathlib import Path  # noqa: PLC0415
@@ -172,8 +172,8 @@ def finish_stale(timeout_hours: float) -> None:
     click.echo(f"Finished {finished} stale run(s) out of {len(active_hashes)} active.")
 
 
-@main.command(name="cleanup-orphan-s3")
-@click.option("--dry-run", is_flag=True, default=False, help="List tombstones and report; do not delete S3 objects")
+@main.command(name="cleanup-orphan-blobs")
+@click.option("--dry-run", is_flag=True, default=False, help="List tombstones and report; do not delete blobs")
 @click.option("--limit", default=0, type=int, help="Process at most N run prefixes (0 = all)")
 @click.option(
     "--lock-ttl-seconds",
@@ -181,19 +181,16 @@ def finish_stale(timeout_hours: float) -> None:
     type=int,
     help="FDB lock TTL in seconds (0 = no lock). Default from config. Schedule via K8s CronJob or cron.",
 )
-def cleanup_orphan_s3(dry_run: bool, limit: int, lock_ttl_seconds: int | None) -> None:
-    """Delete S3 objects for runs that have a deletion tombstone.
+def cleanup_orphan_blobs(dry_run: bool, limit: int, lock_ttl_seconds: int | None) -> None:
+    """Delete blobs for runs that have a deletion tombstone.
 
     Intended to be scheduled as a Kubernetes CronJob or system cron entry.
     """
-    import boto3  # noqa: PLC0415
-    from botocore.config import Config as BotoConfig  # noqa: PLC0415
-
     from matyan_backend.config import SETTINGS  # noqa: PLC0415
     from matyan_backend.jobs.lock import release, try_acquire  # noqa: PLC0415
+    from matyan_backend.storage import blob  # noqa: PLC0415
     from matyan_backend.storage.fdb_client import ensure_directories, init_fdb  # noqa: PLC0415
     from matyan_backend.storage.indexes import list_tombstones  # noqa: PLC0415
-    from matyan_backend.workers.control import delete_s3_prefix  # noqa: PLC0415
 
     ttl = lock_ttl_seconds if lock_ttl_seconds is not None else SETTINGS.cleanup_job_lock_ttl_seconds
 
@@ -202,7 +199,7 @@ def cleanup_orphan_s3(dry_run: bool, limit: int, lock_ttl_seconds: int | None) -
 
     lock_held = False
     if ttl > 0:
-        lock_held = try_acquire(db, "cleanup_orphan_s3", ttl)
+        lock_held = try_acquire(db, "cleanup_orphan_blobs", ttl)
         if not lock_held:
             click.echo("Could not acquire lock — another instance may be running. Exiting.")
             raise SystemExit(1)
@@ -216,29 +213,20 @@ def cleanup_orphan_s3(dry_run: bool, limit: int, lock_ttl_seconds: int | None) -
 
         if dry_run:
             for run_hash, ts in tombstones:
-                click.echo(f"  [dry-run] Would delete S3 prefix: {run_hash}/ (deleted at {ts:.0f})")
+                click.echo(f"  [dry-run] Would delete blob prefix: {run_hash}/ (deleted at {ts:.0f})")
             return
-
-        s3 = boto3.client(
-            "s3",
-            endpoint_url=SETTINGS.s3_endpoint,
-            aws_access_key_id=SETTINGS.s3_access_key,
-            aws_secret_access_key=SETTINGS.s3_secret_key,
-            config=BotoConfig(signature_version="s3v4"),
-            region_name=SETTINGS.s3_region,
-        )
 
         total_deleted = 0
         for i, (run_hash, _ts) in enumerate(tombstones, 1):
-            count = delete_s3_prefix(s3, SETTINGS.s3_bucket, f"{run_hash}/")
+            count = blob.delete_blob_prefix(f"{run_hash}/")
             total_deleted += count
             if i % 50 == 0 or i == len(tombstones):
-                click.echo(f"  Processed {i}/{len(tombstones)} runs ({total_deleted} S3 objects deleted)")
+                click.echo(f"  Processed {i}/{len(tombstones)} runs ({total_deleted} blobs deleted)")
 
-        click.echo(f"Done. Deleted {total_deleted} S3 object(s) across {len(tombstones)} run(s).")
+        click.echo(f"Done. Deleted {total_deleted} blob(s) across {len(tombstones)} run(s).")
     finally:
         if lock_held:
-            release(db, "cleanup_orphan_s3")
+            release(db, "cleanup_orphan_blobs")
 
 
 @main.command(name="cleanup-tombstones")

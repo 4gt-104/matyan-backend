@@ -45,3 +45,34 @@ def get_blob_size(s3_key: str) -> int:
     if blob is None:
         return 0
     return blob.size or 0
+
+
+def delete_blobs(keys: list[str]) -> int:
+    """Delete multiple objects from GCS in batches. Returns count of deleted objects."""
+    if not keys:
+        return 0
+    bucket = _get_bucket()
+    deleted_count = 0
+    # GCS batch delete
+    for i in range(0, len(keys), 100):
+        chunk = keys[i : i + 100]
+        # delete_blobs accepts a list of blob names
+        bucket.delete_blobs(chunk)
+        deleted_count += len(chunk)
+    return deleted_count
+
+
+def delete_blob_prefix(prefix: str) -> int:
+    """Delete all objects under a prefix from GCS. Returns count of deleted objects."""
+    bucket = _get_bucket()
+    blobs = list(bucket.list_blobs(prefix=prefix))
+    if not blobs:
+        return 0
+    # Batch delete up to 100 at a time (or let SDK chunk it if supported,
+    # but chunking explicitly is safer).
+    deleted_count = 0
+    for i in range(0, len(blobs), 100):
+        chunk = blobs[i : i + 100]
+        bucket.delete_blobs(chunk)
+        deleted_count += len(chunk)
+    return deleted_count

@@ -321,7 +321,6 @@ class TestControlWorkerLifecycle:
     def test_consume_loop_processes_event(self) -> None:
         worker = ControlWorker()
         worker._db = MagicMock()  # noqa: SLF001
-        worker._s3 = MagicMock()  # noqa: SLF001
 
         event = ControlEvent(
             type="run_deleted",
@@ -334,7 +333,7 @@ class TestControlWorkerLifecycle:
 
         mock_consumer = _AsyncIter([mock_record])
         mock_consumer.commit = AsyncMock()  # ty:ignore[unresolved-attribute]
-        worker._consumer = mock_consumer  # type: ignore[assignment]  # noqa: SLF001
+        worker._consumer = mock_consumer  # noqa: SLF001  # ty:ignore[invalid-assignment]
 
         with patch.object(worker, "_handle_event"):
             asyncio.run(worker._consume_loop())  # noqa: SLF001
@@ -343,7 +342,6 @@ class TestControlWorkerLifecycle:
     def test_consume_loop_validation_error(self) -> None:
         worker = ControlWorker()
         worker._db = MagicMock()  # noqa: SLF001
-        worker._s3 = MagicMock()  # noqa: SLF001
 
         mock_record = MagicMock()
         mock_record.value = "bad-json"
@@ -352,7 +350,7 @@ class TestControlWorkerLifecycle:
 
         mock_consumer = _AsyncIter([mock_record])
         mock_consumer.commit = AsyncMock()  # ty:ignore[unresolved-attribute]
-        worker._consumer = mock_consumer  # type: ignore[assignment]  # noqa: SLF001
+        worker._consumer = mock_consumer  # noqa: SLF001  # ty:ignore[invalid-assignment]
 
         asyncio.run(worker._consume_loop())  # noqa: SLF001
         mock_consumer.commit.assert_not_called()  # ty:ignore[unresolved-attribute]
@@ -360,7 +358,6 @@ class TestControlWorkerLifecycle:
     def test_consume_loop_fdb_error(self) -> None:
         worker = ControlWorker()
         worker._db = MagicMock()  # noqa: SLF001
-        worker._s3 = MagicMock()  # noqa: SLF001
 
         event = ControlEvent(
             type="run_deleted",
@@ -374,7 +371,7 @@ class TestControlWorkerLifecycle:
 
         mock_consumer = _AsyncIter([mock_record])
         mock_consumer.commit = AsyncMock()  # ty:ignore[unresolved-attribute]
-        worker._consumer = mock_consumer  # type: ignore[assignment]  # noqa: SLF001
+        worker._consumer = mock_consumer  # noqa: SLF001  # ty:ignore[invalid-assignment]
 
         with patch.object(worker, "_handle_event", side_effect=FDBError(1000)):
             asyncio.run(worker._consume_loop())  # noqa: SLF001
@@ -382,7 +379,6 @@ class TestControlWorkerLifecycle:
     def test_consume_loop_client_error(self) -> None:
         worker = ControlWorker()
         worker._db = MagicMock()  # noqa: SLF001
-        worker._s3 = MagicMock()  # noqa: SLF001
 
         event = ControlEvent(
             type="run_deleted",
@@ -396,7 +392,7 @@ class TestControlWorkerLifecycle:
 
         mock_consumer = _AsyncIter([mock_record])
         mock_consumer.commit = AsyncMock()  # ty:ignore[unresolved-attribute]
-        worker._consumer = mock_consumer  # type: ignore[assignment]  # noqa: SLF001
+        worker._consumer = mock_consumer  # noqa: SLF001  # ty:ignore[invalid-assignment]
 
         with patch.object(worker, "_handle_event", side_effect=ClientError({"Error": {"Code": "500"}}, "op")):
             asyncio.run(worker._consume_loop())  # noqa: SLF001
@@ -404,7 +400,6 @@ class TestControlWorkerLifecycle:
     def test_consume_loop_unexpected_error(self) -> None:
         worker = ControlWorker()
         worker._db = MagicMock()  # noqa: SLF001
-        worker._s3 = MagicMock()  # noqa: SLF001
 
         event = ControlEvent(
             type="run_deleted",
@@ -418,7 +413,7 @@ class TestControlWorkerLifecycle:
 
         mock_consumer = _AsyncIter([mock_record])
         mock_consumer.commit = AsyncMock()  # ty:ignore[unresolved-attribute]
-        worker._consumer = mock_consumer  # type: ignore[assignment]  # noqa: SLF001
+        worker._consumer = mock_consumer  # noqa: SLF001  # ty:ignore[invalid-assignment]
 
         with patch.object(worker, "_handle_event", side_effect=RuntimeError("boom")):
             asyncio.run(worker._consume_loop())  # noqa: SLF001
@@ -550,10 +545,8 @@ class TestControlWorkerStart:
             with (
                 patch("matyan_backend.workers.control.init_fdb", return_value=MagicMock()),
                 patch("matyan_backend.workers.control.ensure_directories"),
-                patch("matyan_backend.workers.control.boto3") as mock_boto3,
                 patch("matyan_backend.workers.control.AIOKafkaConsumer", return_value=mock_consumer_instance),
             ):
-                mock_boto3.client.return_value = MagicMock()
                 await worker.start()
 
         asyncio.run(_test())

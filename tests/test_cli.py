@@ -148,7 +148,7 @@ class TestFinishStaleCommand:
         assert "0 stale run(s)" in result.output
 
 
-class TestCleanupOrphanS3:
+class TestCleanupOrphanBlobs:
     @patch("matyan_backend.storage.indexes.list_tombstones", return_value=[("r1", 100.0), ("r2", 200.0)])
     @patch("matyan_backend.storage.fdb_client.ensure_directories")
     @patch("matyan_backend.storage.fdb_client.init_fdb")
@@ -159,14 +159,13 @@ class TestCleanupOrphanS3:
         mock_tombstones: MagicMock,
     ) -> None:
         runner = CliRunner()
-        result = runner.invoke(main, ["cleanup-orphan-s3", "--dry-run"])
+        result = runner.invoke(main, ["cleanup-orphan-blobs", "--dry-run"])
         assert result.exit_code == 0
         assert "[dry-run]" in result.output
         assert "r1/" in result.output
         assert "r2/" in result.output
 
-    @patch("matyan_backend.workers.control.delete_s3_prefix", return_value=3)
-    @patch("boto3.client")
+    @patch("matyan_backend.storage.blob.delete_blob_prefix", return_value=3)
     @patch("matyan_backend.storage.indexes.list_tombstones", return_value=[("r1", 100.0)])
     @patch("matyan_backend.storage.fdb_client.ensure_directories")
     @patch("matyan_backend.storage.fdb_client.init_fdb")
@@ -175,17 +174,15 @@ class TestCleanupOrphanS3:
         mock_init: MagicMock,
         mock_dirs: MagicMock,
         mock_tombstones: MagicMock,
-        mock_boto: MagicMock,
         mock_delete: MagicMock,
     ) -> None:
         runner = CliRunner()
-        result = runner.invoke(main, ["cleanup-orphan-s3"])
+        result = runner.invoke(main, ["cleanup-orphan-blobs"])
         assert result.exit_code == 0
-        assert "3 S3 object(s)" in result.output
+        assert "3 blob(s)" in result.output
         mock_delete.assert_called_once()
 
-    @patch("matyan_backend.workers.control.delete_s3_prefix", return_value=1)
-    @patch("boto3.client")
+    @patch("matyan_backend.storage.blob.delete_blob_prefix", return_value=1)
     @patch("matyan_backend.storage.indexes.list_tombstones", return_value=[("r1", 1.0), ("r2", 2.0), ("r3", 3.0)])
     @patch("matyan_backend.storage.fdb_client.ensure_directories")
     @patch("matyan_backend.storage.fdb_client.init_fdb")
@@ -194,11 +191,10 @@ class TestCleanupOrphanS3:
         mock_init: MagicMock,
         mock_dirs: MagicMock,
         mock_tombstones: MagicMock,
-        mock_boto: MagicMock,
         mock_delete: MagicMock,
     ) -> None:
         runner = CliRunner()
-        result = runner.invoke(main, ["cleanup-orphan-s3", "--limit", "2"])
+        result = runner.invoke(main, ["cleanup-orphan-blobs", "--limit", "2"])
         assert result.exit_code == 0
         assert mock_delete.call_count == 2
 
@@ -212,7 +208,7 @@ class TestCleanupOrphanS3:
         mock_acquire: MagicMock,
     ) -> None:
         runner = CliRunner()
-        result = runner.invoke(main, ["cleanup-orphan-s3", "--lock-ttl-seconds", "60"])
+        result = runner.invoke(main, ["cleanup-orphan-blobs", "--lock-ttl-seconds", "60"])
         assert result.exit_code != 0
         assert "Could not acquire lock" in result.output
 
@@ -230,10 +226,10 @@ class TestCleanupOrphanS3:
         mock_release: MagicMock,
     ) -> None:
         runner = CliRunner()
-        result = runner.invoke(main, ["cleanup-orphan-s3", "--lock-ttl-seconds", "60"])
+        result = runner.invoke(main, ["cleanup-orphan-blobs", "--lock-ttl-seconds", "60"])
         assert result.exit_code == 0
-        mock_acquire.assert_called_once_with(mock_init.return_value, "cleanup_orphan_s3", 60)
-        mock_release.assert_called_once_with(mock_init.return_value, "cleanup_orphan_s3")
+        mock_acquire.assert_called_once_with(mock_init.return_value, "cleanup_orphan_blobs", 60)
+        mock_release.assert_called_once_with(mock_init.return_value, "cleanup_orphan_blobs")
 
 
 class TestCleanupTombstones:

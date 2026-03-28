@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, cast
 
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobClient, BlobServiceClient
+from loguru import logger
 
 from matyan_backend.config import SETTINGS
 
@@ -47,3 +48,36 @@ def get_blob_size(blob_key: str) -> int:
     """Return the size in bytes of an Azure object."""
     props = _get_blob_client(blob_key).get_blob_properties()
     return props.size
+
+
+def delete_blobs(keys: list[str]) -> int:
+    """Delete multiple objects from Azure. Returns count of deleted objects."""
+    if not keys:
+        return 0
+    client = _get_client()
+    container = client.get_container_client(SETTINGS.azure_container)
+    count = 0
+    for k in keys:
+        try:
+            container.delete_blob(k)
+            count += 1
+        except Exception:  # noqa: BLE001
+            logger.warning("Failed to delete blob {} from Azure", k)
+    return count
+
+
+def delete_blob_prefix(prefix: str) -> int:
+    """Delete all objects under a prefix from Azure. Returns count of deleted objects."""
+    client = _get_client()
+    container = client.get_container_client(SETTINGS.azure_container)
+    blobs = list(container.list_blobs(name_starts_with=prefix))
+    if not blobs:
+        return 0
+    count = 0
+    for b in blobs:
+        try:
+            container.delete_blob(b.name)
+            count += 1
+        except Exception:  # noqa: BLE001
+            logger.warning("Failed to delete blob {} from Azure", b.name)
+    return count
