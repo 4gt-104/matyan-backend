@@ -114,3 +114,22 @@ dev = [
     "types-boto3[s3]",
     "pytest-cov>=7.0.0",
 ]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-aarch64", "linux-64", "osx-arm64"]
+
+[tool.pixi.pypi-dependencies]
+matyan-backend = { path = ".", editable = true }
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
+
+[tool.pixi.feature.dev]
+pypi-dependencies = { matyan-api-models = { path = "../matyan-api-models", editable = true } }
+
+[tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+python = "~=3.12.0"
